@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128">
+  <rect width="128" height="128" rx="16" fill="#1A1A2E"/>
+  <circle cx="64" cy="52" r="24" fill="none" stroke="#C9A84C" stroke-width="5"/>
+  <line x1="80" y1="68" x2="98" y2="86" stroke="#C9A84C" stroke-width="5" stroke-linecap="round"/>
+  <text x="64" y="110" text-anchor="middle" font-family="Arial,sans-serif" font-weight="bold" font-size="16" fill="#C9A84C">SEO</text>
+</svg>

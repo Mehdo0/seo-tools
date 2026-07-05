@@ -1,0 +1,23 @@
+services:
+  backend:
+    build:
+      context: ..
+      dockerfile: docker/backend.Dockerfile
+    container_name: seo-backend
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    volumes:
+      - ../backend:/app
+    env_file:
+      - ../.env
+
+  scraper:
+    build:
+      context: ..
+      dockerfile: docker/scraper.Dockerfile
+    container_name: seo-scraper
+    restart: unless-stopped
+    volumes:
+      - ../scraping-service:/app
+      - ../data:/app/data
