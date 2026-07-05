@@ -34,7 +34,8 @@ class TestScrapingProduct:
         resp = client.post("/api/scraping/product", json={
             "url": "not-a-valid-url",
         }, headers=auth_headers)
-        assert resp.status_code == 200
+        assert resp.status_code == 400
+        assert "detail" in resp.json()
 
     def test_scrape_product_scraper_error(self, client, auth_headers):
         with patch("services.scraper_engine.scraper.scrape_product", new_callable=AsyncMock) as mock:

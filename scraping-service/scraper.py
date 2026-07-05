@@ -5,6 +5,7 @@ import csv
 import json
 import os
 import random
+import re
 import time
 from datetime import datetime
 from urllib.parse import urljoin, urlparse
@@ -300,11 +301,12 @@ class EcommerceScraper:
 
     async def monitor_price(self, url, interval_hours=24):
         data = await self.scrape_product(url)
-        filename = f"{self.output_dir}/price_history_{hash(url)}.json"
-
+        safe_name = re.sub(r"[^a-zA-Z0-9_.-]", "_", str(abs(hash(url))))
+        filename = f"price_history_{safe_name}.json"
+        filepath = self._safe_path(filename)
         history = []
-        if os.path.exists(filename):
-            with open(filename) as f:
+        if os.path.exists(filepath):
+            with open(filepath) as f:
                 history = json.load(f)
 
         entry = {
@@ -314,7 +316,7 @@ class EcommerceScraper:
         }
         history.append(entry)
 
-        with open(filename, "w") as f:
+        with open(filepath, "w") as f:
             json.dump(history, f, indent=2)
 
         alerts = []
@@ -330,14 +332,29 @@ class EcommerceScraper:
 
         return {"url": url, "entry": entry, "history": history, "alerts": alerts}
 
+    def _safe_path(self, filename, output_dir=None):
+        """Sanitize filename to prevent path traversal."""
+        # Remove any directory components from the filename
+        import re
+        safe = re.sub(r"[^a-zA-Z0-9_.-]", "_", os.path.basename(filename))
+        if not safe:
+            safe = "output"
+        base_dir = os.path.abspath(output_dir or self.output_dir)
+        filepath = os.path.join(base_dir, safe)
+        # Ensure the resolved path stays within base_dir
+        real_path = os.path.realpath(filepath)
+        if not real_path.startswith(base_dir + os.sep) and real_path != base_dir:
+            raise ValueError(f"Path traversal detected: {filename}")
+        return filepath
+
     def export_json(self, data, filename):
-        filepath = f"{self.output_dir}/{filename}"
+        filepath = self._safe_path(filename)
         with open(filepath, "w") as f:
             json.dump(data, f, indent=2)
         return filepath
 
     def export_csv(self, data, filename):
-        filepath = f"{self.output_dir}/{filename}"
+        filepath = self._safe_path(filename)
         if isinstance(data, list) and len(data) > 0:
             keys = data[0].keys()
             with open(filepath, "w", newline="") as f:

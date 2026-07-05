@@ -1,9 +1,12 @@
+import logging
 from fastapi import APIRouter, HTTPException, Request, Depends
 from pydantic import BaseModel
 import stripe
 
 from config import settings
 from api.auth import get_current_user
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/payments", tags=["payments"])
 
@@ -30,7 +33,8 @@ async def create_checkout(req: CheckoutRequest, user: dict = Depends(get_current
         )
         return {"url": session.url, "session_id": session.id}
     except stripe.error.StripeError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        logger.error("Stripe error during checkout: %s", e, exc_info=True)
+        raise HTTPException(status_code=400, detail="Payment processing error")
 
 
 @router.post("/webhook")
