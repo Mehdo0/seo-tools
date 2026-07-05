@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SEO Inspector</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <div class="popup-container">
+
+    <!-- Header -->
+    <header class="header">
+      <div class="header-left">
+        <svg class="logo" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="11" cy="11" r="8"/>
+          <line x1="21" y1="21" x2="16.65" y2="16.65"/>
+        </svg>
+        <h1 class="title">SEO Inspector</h1>
+      </div>
+      <button class="icon-btn settings-btn" id="settingsBtn" title="Settings">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="3"/>
+          <path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/>
+        </svg>
+      </button>
+    </header>
+
+    <!-- Page info bar -->
+    <div class="page-info" id="pageInfo">
+      <span class="page-url" id="pageUrl">Loading...</span>
+    </div>
+
+    <!-- Score section -->
+    <section class="score-section" id="scoreSection">
+      <div class="score-ring">
+        <svg class="score-circle" viewBox="0 0 120 120">
+          <circle class="score-bg" cx="60" cy="60" r="52" fill="none" stroke-width="8"/>
+          <circle class="score-fill" cx="60" cy="60" r="52" fill="none" stroke-width="8"
+                  stroke-linecap="round" id="scoreArc"/>
+        </svg>
+        <div class="score-text">
+          <span class="score-number" id="scoreNumber">--</span>
+        </div>
+      </div>
+      <div class="score-label" id="scoreLabel">Analyzing...</div>
+    </section>
+
+    <!-- Loading spinner -->
+    <div class="loading" id="loadingSpinner">
+      <div class="spinner"></div>
+      <p>Analyzing page...</p>
+    </div>
+
+    <!-- Error state -->
+    <div class="error-state hidden" id="errorState">
+      <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#C0392B" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="12" cy="12" r="10"/>
+        <line x1="12" y1="8" x2="12" y2="12"/>
+        <line x1="12" y1="16" x2="12.01" y2="16"/>
+      </svg>
+      <p id="errorMessage">Unable to analyze this page.</p>
+      <button class="btn btn-outline" id="retryBtn">Retry</button>
+    </div>
+
+    <!-- Results tabs -->
+    <div class="results-container hidden" id="resultsContainer">
+
+      <!-- Tab navigation -->
+      <nav class="tabs">
+        <button class="tab active" data-tab="overview">Overview</button>
+        <button class="tab" data-tab="meta">Meta</button>
+        <button class="tab" data-tab="headings">Headings</button>
+        <button class="tab" data-tab="keywords">Keywords</button>
+        <button class="tab" data-tab="links">Links</button>
+        <button class="tab" data-tab="images">Images</button>
+      </nav>
+
+      <!-- Tab panels -->
+      <div class="tab-panels">
+
+        <!-- Overview Panel -->
+        <div class="tab-panel active" id="panel-overview">
+          <div class="metric-grid">
+            <div class="metric-card">
+              <div class="metric-value" id="metaScore">--</div>
+              <div class="metric-label">Meta Tags</div>
+            </div>
+            <div class="metric-card">
+              <div class="metric-value" id="headingScore">--</div>
+              <div class="metric-label">Headings</div>
+            </div>
+            <div class="metric-card">
+              <div class="metric-value" id="linkScore">--</div>
+              <div class="metric-label">Links</div>
+            </div>
+            <div class="metric-card">
+              <div class="metric-value" id="imageScore">--</div>
+              <div class="metric-label">Images</div>
+            </div>
+          </div>
+          <div class="summary-section">
+            <h3>Quick Summary</h3>
+            <ul class="summary-list" id="summaryList">
+              <li class="summary-item good">Title tag: <span id="sumTitle">--</span></li>
+              <li class="summary-item good">Meta description: <span id="sumDesc">--</span></li>
+              <li class="summary-item good">Word count: <span id="sumWords">--</span></li>
+              <li class="summary-item good">Load time: <span id="sumLoad">--</span></li>
+            </ul>
+          </div>
+        </div>
+
+        <!-- Meta Panel -->
+        <div class="tab-panel" id="panel-meta">
+          <div class="checklist" id="metaChecklist">
+            <!-- Filled dynamically -->
+          </div>
+        </div>
+
+        <!-- Headings Panel -->
+        <div class="tab-panel" id="panel-headings">
+          <div class="heading-hierarchy" id="headingHierarchy">
+            <!-- Filled dynamically -->
+          </div>
+          <div class="premium-banner" id="headingPremiumBanner">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+              <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+            </svg>
+            <span>Detailed heading insights available in Premium</span>
+          </div>
+        </div>
+
+        <!-- Keywords Panel -->
+        <div class="tab-panel" id="panel-keywords">
+          <div class="premium-locked">
+            <div class="lock-icon">
+              <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#C9A84C" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+                <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+              </svg>
+            </div>
+            <h3>Keyword Density</h3>
+            <p>Unlock keyword analysis, density maps, and optimization suggestions.</p>
+            <button class="btn btn-gold" id="upgradeKeywords">Upgrade to Premium</button>
+            <p class="pricing">$5–10/month</p>
+          </div>
+        </div>
+
+        <!-- Links Panel -->
+        <div class="tab-panel" id="panel-links">
+          <div class="links-summary" id="linksSummary">
+            <!-- Filled dynamically -->
+          </div>
+          <div class="premium-banner" id="linksPremiumBanner">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+              <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+            </svg>
+            <span>Backlink analysis available in Premium</span>
+          </div>
+        </div>
+
+        <!-- Images Panel -->
+        <div class="tab-panel" id="panel-images">
+          <div class="images-summary" id="imagesSummary">
+            <!-- Filled dynamically -->
+          </div>
+          <div class="premium-banner" id="imagesPremiumBanner">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+              <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+            </svg>
+            <span>Image optimization reports available in Premium</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Footer -->
+    <footer class="footer">
+      <div class="premium-status" id="premiumStatus">
+        <span class="badge badge-free">Free</span>
+      </div>
+      <button class="btn btn-upgrade hidden" id="footerUpgrade">Upgrade to Pro</button>
+    </footer>
+
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>

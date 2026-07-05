@@ -235,6 +235,7 @@ def compute_seo_score(analysis):
 
 def analyze_html(html, url=None):
     soup = BeautifulSoup(html, "html.parser")
+    schema = detect_schema(soup)
     for tag in soup(["script", "style", "noscript", "nav", "footer", "header"]):
         tag.decompose()
     body = soup.body
@@ -247,6 +248,6 @@ def analyze_html(html, url=None):
         "readability": readability_score(text),
         "images": extract_images(soup),
         "links": extract_links(soup, url),
-        "structured_data": detect_schema(soup),
+        "structured_data": schema,
         "mobile_viewport": check_mobile_viewport(soup),
     }

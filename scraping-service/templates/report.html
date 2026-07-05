@@ -1,0 +1,408 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>E-Commerce Price Intelligence Report</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
+  :root {
+    --bg: #f8fafc;
+    --card-bg: #ffffff;
+    --text: #1e293b;
+    --muted: #64748b;
+    --border: #e2e8f0;
+    --primary: #2563eb;
+    --primary-light: #dbeafe;
+    --success: #16a34a;
+    --success-light: #dcfce7;
+    --warning: #ea580c;
+    --warning-light: #fff7ed;
+    --danger: #dc2626;
+    --danger-light: #fef2f2;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.6;
+    font-size: 14px;
+  }
+
+  .container {
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 40px 24px;
+  }
+
+  .header {
+    background: linear-gradient(135deg, #1e293b 0%, #334155 100%);
+    color: white;
+    padding: 48px 0;
+    margin-bottom: 32px;
+  }
+
+  .header-inner {
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 0 24px;
+  }
+
+  .header h1 {
+    font-size: 28px;
+    font-weight: 700;
+    margin-bottom: 8px;
+  }
+
+  .header .meta {
+    color: #94a3b8;
+    font-size: 14px;
+  }
+
+  .hero-stats {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 16px;
+    margin-bottom: 32px;
+  }
+
+  .stat-card {
+    background: var(--card-bg);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 24px;
+    text-align: center;
+  }
+
+  .stat-value {
+    font-size: 32px;
+    font-weight: 700;
+    color: var(--primary);
+    display: block;
+  }
+
+  .stat-label {
+    color: var(--muted);
+    font-size: 13px;
+    margin-top: 4px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+
+  .section {
+    background: var(--card-bg);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    margin-bottom: 24px;
+    overflow: hidden;
+  }
+
+  .section-header {
+    padding: 20px 24px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  .section-header h2 {
+    font-size: 18px;
+    font-weight: 600;
+  }
+
+  .badge {
+    padding: 4px 12px;
+    border-radius: 20px;
+    font-size: 12px;
+    font-weight: 600;
+  }
+
+  .badge-success { background: var(--success-light); color: var(--success); }
+  .badge-warning { background: var(--warning-light); color: var(--warning); }
+  .badge-danger  { background: var(--danger-light);  color: var(--danger);  }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+  }
+
+  thead {
+    background: #f1f5f9;
+  }
+
+  th {
+    padding: 12px 16px;
+    text-align: left;
+    font-weight: 600;
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--muted);
+  }
+
+  td {
+    padding: 14px 16px;
+    border-bottom: 1px solid var(--border);
+    font-size: 14px;
+  }
+
+  tr:last-child td { border-bottom: none; }
+
+  .price {
+    font-weight: 700;
+    font-size: 16px;
+    color: var(--primary);
+  }
+
+  .price-best {
+    color: var(--success);
+    font-weight: 700;
+  }
+
+  .product-cell {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .product-cell img {
+    width: 48px;
+    height: 48px;
+    object-fit: cover;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    background: #f1f5f9;
+  }
+
+  .product-cell .name {
+    font-weight: 500;
+    max-width: 300px;
+  }
+
+  .store-link {
+    color: var(--primary);
+    text-decoration: none;
+    font-size: 12px;
+  }
+
+  .store-link:hover { text-decoration: underline; }
+
+  .chart-placeholder {
+    padding: 32px;
+    text-align: center;
+    background: #f8fafc;
+    border-radius: 8px;
+    margin: 16px 24px;
+    border: 2px dashed var(--border);
+  }
+
+  .chart-placeholder pre {
+    font-family: 'Courier New', monospace;
+    font-size: 12px;
+    color: var(--muted);
+    display: inline-block;
+    text-align: left;
+  }
+
+  .insight-list {
+    padding: 20px 24px;
+    list-style: none;
+  }
+
+  .insight-list li {
+    padding: 12px 16px;
+    margin-bottom: 8px;
+    background: var(--primary-light);
+    border-left: 3px solid var(--primary);
+    border-radius: 0 8px 8px 0;
+    font-size: 14px;
+  }
+
+  .insight-list li.success {
+    background: var(--success-light);
+    border-left-color: var(--success);
+  }
+
+  .insight-list li.warning {
+    background: var(--warning-light);
+    border-left-color: var(--warning);
+  }
+
+  .footer {
+    text-align: center;
+    color: var(--muted);
+    font-size: 12px;
+    padding: 32px 0;
+    border-top: 1px solid var(--border);
+    margin-top: 32px;
+  }
+
+  .footer a { color: var(--primary); text-decoration: none; }
+
+  .save-badge {
+    display: inline-block;
+    background: var(--success-light);
+    color: var(--success);
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 12px;
+    font-weight: 600;
+    margin-left: 8px;
+  }
+
+  @media print {
+    body { background: white; }
+    .section { break-inside: avoid; }
+  }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="header-inner">
+    <h1>E-Commerce Price Intelligence Report</h1>
+    <p class="meta">Generated on {{report_date}} &middot; {{num_products}} products analyzed across {{num_stores}} stores</p>
+  </div>
+</div>
+
+<div class="container">
+
+  <div class="hero-stats">
+    <div class="stat-card">
+      <span class="stat-value">{{num_products}}</span>
+      <span class="stat-label">Products Tracked</span>
+    </div>
+    <div class="stat-card">
+      <span class="stat-value">{{num_stores}}</span>
+      <span class="stat-label">Stores Monitored</span>
+    </div>
+    <div class="stat-card">
+      <span class="stat-value">{{avg_price}}</span>
+      <span class="stat-label">Avg. Price</span>
+    </div>
+    <div class="stat-card">
+      <span class="stat-value">{{price_drops}}</span>
+      <span class="stat-label">Price Drops</span>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-header">
+      <h2>Product Comparison</h2>
+      <span class="badge badge-success">{{num_products}} products</span>
+    </div>
+    <table>
+      <thead>
+        <tr>
+          <th>Product</th>
+          <th>Store</th>
+          <th>Price</th>
+          <th>Savings</th>
+          <th>Last Checked</th>
+        </tr>
+      </thead>
+      <tbody>
+        {{#products}}
+        <tr>
+          <td>
+            <div class="product-cell">
+              {{#image}}<img src="{{image}}" alt="{{title}}" loading="lazy">{{/image}}
+              <span class="name">{{title}}</span>
+            </div>
+          </td>
+          <td><a class="store-link" href="{{url}}" target="_blank">{{store}}</a></td>
+          <td class="price {{#is_best_price}}price-best{{/is_best_price}}">{{price}}</td>
+          <td>{{#savings}}<span class="save-badge">Save {{savings}}</span>{{/savings}}{{^savings}}-{{/savings}}</td>
+          <td>{{last_checked}}</td>
+        </tr>
+        {{/products}}
+      </tbody>
+    </table>
+  </div>
+
+  <div class="section">
+    <div class="section-header">
+      <h2>Price Trend Analysis</h2>
+      <span class="badge badge-warning">30-day trend</span>
+    </div>
+    <div class="chart-placeholder">
+      {{#chart_ascii}}
+      <pre>{{chart_ascii}}</pre>
+      {{/chart_ascii}}
+      {{^chart_ascii}}
+      <p style="color: var(--muted);">Chart image saved separately. Run with --chart to generate visualization.</p>
+      {{/chart_ascii}}
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-header">
+      <h2>Market Insights</h2>
+      <span class="badge badge-success">Summary</span>
+    </div>
+    <ul class="insight-list">
+      {{#insights}}
+      <li class="{{type}}">{{text}}</li>
+      {{/insights}}
+      {{^insights}}
+      <li class="success">All products have stable pricing with no significant changes.</li>
+      <li>Continue monitoring for seasonal trends and competitor price adjustments.</li>
+      {{/insights}}
+    </ul>
+  </div>
+
+  <div class="section">
+    <div class="section-header">
+      <h2>Price Alerts</h2>
+      <span class="badge {{#has_alerts}}badge-danger{{/has_alerts}}{{^has_alerts}}badge-success{{/has_alerts}}">
+        {{num_alerts}} alerts
+      </span>
+    </div>
+    <table>
+      <thead>
+        <tr>
+          <th>Product</th>
+          <th>Previous Price</th>
+          <th>Current Price</th>
+          <th>Change</th>
+          <th>Date</th>
+        </tr>
+      </thead>
+      <tbody>
+        {{#alerts}}
+        <tr>
+          <td>{{title}}</td>
+          <td>{{previous_price}}</td>
+          <td class="price">{{current_price}}</td>
+          <td>
+            <span class="badge {{#is_drop}}badge-success{{/is_drop}}{{^is_drop}}badge-warning{{/is_drop}}">
+              {{change_pct}}
+            </span>
+          </td>
+          <td>{{date}}</td>
+        </tr>
+        {{/alerts}}
+        {{^alerts}}
+        <tr>
+          <td colspan="5" style="text-align: center; color: var(--muted); padding: 32px;">
+            No price alerts. All monitored products are stable.
+          </td>
+        </tr>
+        {{/alerts}}
+      </tbody>
+    </table>
+  </div>
+
+  <div class="footer">
+    <p>Report generated by <strong>E-Commerce Scraping Engine</strong> &mdash; Automated price intelligence for online retailers.</p>
+    <p style="margin-top: 4px;">Next scheduled check: {{next_check}} &middot; <a href="#">Configure alerts</a></p>
+  </div>
+
+</div>
+
+</body>
+</html>
