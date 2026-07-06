@@ -10,3 +10,7 @@ venv/
 *.egg-info/
 dist/
 build/
+*.zip
+screenshots/
+store-listing.md
+privacy.html
