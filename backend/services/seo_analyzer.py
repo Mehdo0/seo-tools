@@ -222,7 +222,7 @@ def compute_seo_score(analysis):
     fk = readability.get("flesch_kincaid", 0)
     if 60 <= fk <= 70:
         score += 8
-    elif 50 <= fk or 70 <= fk:
+    elif 50 <= fk < 60 or 70 < fk:
         score += 4
     links = analysis.get("links", {})
     if links.get("internal", 0) > 0:

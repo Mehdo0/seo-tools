@@ -9,10 +9,11 @@
 // Constants
 // ==========================================================================
 
-const API_BASE = 'https://api.seoinspector.dev/api/seo/analyze';
+const API_BASE = 'http://hernestagent.duckdns.org';
 const CACHE_KEY_PREFIX = 'seo_cache_';
-const CACHE_TTL_MS = 60 * 60 * 1000; // 1 hour
+const CACHE_TTL_MS = 60 * 60 * 1000;
 const PREMIUM_KEY = 'seo_premium_status';
+const TOKEN_KEY = 'seo_auth_token';
 const SETTINGS_KEY = 'seo_settings';
 
 // ==========================================================================
@@ -40,20 +41,41 @@ document.addEventListener('DOMContentLoaded', async () => {
 // ==========================================================================
 
 function bindEvents() {
-  // Tab switching
   document.querySelectorAll('.tab').forEach(tab => {
     tab.addEventListener('click', () => switchTab(tab.dataset.tab));
   });
 
-  // Settings
   document.getElementById('settingsBtn').addEventListener('click', toggleSettings);
 
-  // Retry
   document.getElementById('retryBtn').addEventListener('click', initAnalysis);
 
-  // Upgrade buttons
   document.getElementById('upgradeKeywords').addEventListener('click', openUpgrade);
   document.getElementById('footerUpgrade').addEventListener('click', openUpgrade);
+
+  document.getElementById('authLoginBtn').addEventListener('click', handleAuthLogin);
+  document.getElementById('authRegisterLink').addEventListener('click', handleAuthRegister);
+  document.getElementById('authCancelBtn').addEventListener('click', hideAuthModal);
+}
+
+// ==========================================================================
+// Auth
+// ==========================================================================
+
+async function getToken() {
+  try {
+    const result = await chrome.storage.local.get(TOKEN_KEY);
+    return result[TOKEN_KEY] || null;
+  } catch {
+    return null;
+  }
+}
+
+async function storeToken(tok) {
+  await chrome.storage.local.set({ [TOKEN_KEY]: tok });
+}
+
+async function clearToken() {
+  await chrome.storage.local.remove(TOKEN_KEY);
 }
 
 // ==========================================================================
@@ -61,11 +83,27 @@ function bindEvents() {
 // ==========================================================================
 
 async function loadPremiumStatus() {
-  try {
-    const result = await chrome.storage.local.get(PREMIUM_KEY);
-    isPremium = result[PREMIUM_KEY] === true;
-  } catch {
-    isPremium = false;
+  const token = await getToken();
+  if (token) {
+    try {
+      const res = await fetch(`${API_BASE}/api/payments/status`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        isPremium = data.premium === true;
+        await chrome.storage.local.set({ [PREMIUM_KEY]: isPremium });
+      }
+    } catch {
+      const local = await chrome.storage.local.get(PREMIUM_KEY);
+      isPremium = local[PREMIUM_KEY] === true;
+    }
+  } else {
+    const local = await chrome.storage.local.get(PREMIUM_KEY);
+    isPremium = local[PREMIUM_KEY] === true;
+    if (!isPremium) {
+      await chrome.storage.local.set({ [PREMIUM_KEY]: false });
+    }
   }
   updatePremiumUI();
 }
@@ -156,6 +194,7 @@ async function initAnalysis() {
 
     // Analyze locally (fast, no API dependency for core features)
     analysisData = analyzeLocally(html, tab.url);
+    analysisData.pageSizeKB = Math.round(html.length / 1024);
 
     // Try backend API for richer analysis
     try {
@@ -411,7 +450,7 @@ async function callBackendAPI(html, url) {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 5000);
 
-    const response = await fetch(API_BASE, {
+    const response = await fetch(`${API_BASE}/api/seo/analyze`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ html, url }),
@@ -494,7 +533,7 @@ function renderResults() {
     `${d.content?.wordCount || 0} words`;
 
   document.getElementById('sumLoad').textContent =
-    `${(new TextEncoder().encode(document.documentElement?.outerHTML || '').length / 1024).toFixed(0) || '--'} KB`;
+    `${d.pageSizeKB || '--'} KB`;
 
   // Summary item classes
   updateSummaryClass('sumTitle', d.meta?.title?.score, 17);
@@ -727,10 +766,101 @@ function hideError() {
 // Upgrade
 // ==========================================================================
 
-function openUpgrade() {
-  chrome.tabs.create({
-    url: 'https://seoinspector.dev/upgrade'
-  });
+async function openUpgrade() {
+  const token = await getToken();
+  if (token) {
+    startStripeCheckout(token);
+    return;
+  }
+  showAuthModal('login');
+}
+
+async function startStripeCheckout(token) {
+  try {
+    const res = await fetch(`${API_BASE}/api/payments/create-checkout`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
+      body: JSON.stringify({
+        success_url: `${API_BASE}/upgrade?success=1`,
+        cancel_url: `${API_BASE}/upgrade?cancel=1`
+      })
+    });
+    const data = await res.json();
+    if (res.ok && data.url) {
+      chrome.tabs.create({ url: data.url });
+    } else {
+      chrome.tabs.create({ url: `${API_BASE}/upgrade` });
+    }
+  } catch {
+    chrome.tabs.create({ url: `${API_BASE}/upgrade` });
+  }
+}
+
+function showAuthModal(mode) {
+  document.getElementById('authOverlay').classList.remove('hidden');
+  document.getElementById('authError').classList.add('hidden');
+  document.getElementById('authEmail').value = '';
+  document.getElementById('authPassword').value = '';
+  if (mode === 'register') {
+    document.getElementById('authLoginBtn').textContent = 'Register';
+    document.getElementById('authRegisterLink').parentElement.classList.add('hidden');
+  } else {
+    document.getElementById('authLoginBtn').textContent = 'Log In';
+    document.getElementById('authRegisterLink').parentElement.classList.remove('hidden');
+  }
+  document.getElementById('authLoginBtn').dataset.mode = mode;
+  document.getElementById('authEmail').focus();
+}
+
+function hideAuthModal() {
+  document.getElementById('authOverlay').classList.add('hidden');
+}
+
+async function handleAuthLogin() {
+  const mode = document.getElementById('authLoginBtn').dataset.mode;
+  const email = document.getElementById('authEmail').value.trim();
+  const password = document.getElementById('authPassword').value;
+
+  if (!email || !password) {
+    showAuthError('Email and password are required');
+    return;
+  }
+  if (password.length < 8) {
+    showAuthError('Password must be at least 8 characters');
+    return;
+  }
+
+  const endpoint = mode === 'register' ? '/api/auth/register' : '/api/auth/login';
+  try {
+    const res = await fetch(`${API_BASE}${endpoint}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || 'Authentication failed');
+
+    await storeToken(data.access_token);
+    hideAuthModal();
+    await loadPremiumStatus();
+    startStripeCheckout(data.access_token);
+  } catch (err) {
+    showAuthError(err.message);
+  }
+}
+
+async function handleAuthRegister(e) {
+  e.preventDefault();
+  showAuthModal('register');
+}
+
+function showAuthError(msg) {
+  const el = document.getElementById('authError');
+  el.textContent = msg;
+  el.classList.remove('hidden');
 }
 
 // ==========================================================================

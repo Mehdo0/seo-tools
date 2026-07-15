@@ -1,3 +1,4 @@
+import asyncio
 import json
 import csv
 import io
@@ -7,6 +8,7 @@ class ScraperEngine:
     def __init__(self):
         self.browser = None
         self.context = None
+        self._lock = asyncio.Lock()
 
     async def start(self, headless=True):
         try:
@@ -28,7 +30,9 @@ class ScraperEngine:
 
     async def scrape_product(self, url, selectors=None):
         if not self.browser:
-            await self.start()
+            async with self._lock:
+                if not self.browser:
+                    await self.start()
         page = await self.context.new_page()
         try:
             await page.goto(url, wait_until="networkidle", timeout=30000)

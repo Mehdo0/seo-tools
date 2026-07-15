@@ -1,7 +1,8 @@
 from contextlib import asynccontextmanager
+from pathlib import Path
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, HTMLResponse
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
@@ -9,10 +10,14 @@ from slowapi.errors import RateLimitExceeded
 from config import settings
 from api import auth, seo, payments, scraping
 
+STATIC_DIR = Path(__file__).parent / "static"
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     yield
+    from services.scraper_engine import scraper
+    await scraper.stop()
 
 app = FastAPI(title=settings.app_name, lifespan=lifespan)
 
@@ -32,6 +37,15 @@ app.include_router(auth.router)
 app.include_router(seo.router)
 app.include_router(payments.router)
 app.include_router(scraping.router)
+
+
+@app.get("/upgrade", response_class=HTMLResponse)
+@limiter.exempt
+async def upgrade_page():
+    upgrade_html = STATIC_DIR / "upgrade.html"
+    if upgrade_html.exists():
+        return upgrade_html.read_text()
+    return HTMLResponse("<h1>Upgrade page not found</h1>", status_code=404)
 
 
 @app.get("/api/health")
