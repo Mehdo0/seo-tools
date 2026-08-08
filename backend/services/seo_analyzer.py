@@ -182,6 +182,113 @@ def count_syllables(word):
     return max(count, 1)
 
 
+def estimate_keyword_difficulty(keyword, url=None):
+    word_count = len(keyword.split())
+    density_score = min(40, word_count * 15)
+    competition_score = 30
+    if url:
+        try:
+            import urllib.request
+            import urllib.parse
+            q = urllib.parse.quote(keyword)
+            req = urllib.request.Request(
+                f"https://www.google.com/search?q={q}",
+                headers={"User-Agent": "Mozilla/5.0"}
+            )
+            resp = urllib.request.urlopen(req, timeout=10)
+            body = resp.read().decode("utf-8", errors="ignore")
+            results = re.findall(r"About ([0-9,]+) results", body)
+            if results:
+                num = int(results[0].replace(",", ""))
+                if num > 0:
+                    competition_score = min(60, 10 + int(20 * math.log10(num)))
+        except Exception:
+            pass
+    difficulty = density_score + competition_score
+    if difficulty <= 25:
+        band = "easy"
+    elif difficulty <= 50:
+        band = "moderate"
+    elif difficulty <= 75:
+        band = "hard"
+    else:
+        band = "very hard"
+    return {"score": difficulty, "band": band, "density_score": density_score, "competition_score": competition_score}
+
+
+def estimate_core_web_vitals(soup, text):
+    dom_size = len(str(soup))
+    images = soup.find_all("img")
+    image_count = len(images)
+    images_no_dims = sum(1 for img in images if not (img.get("width") and img.get("height")))
+    scripts = len(soup.find_all("script"))
+    stylesheets = len(soup.find_all("link", rel="stylesheet"))
+    iframes = len(soup.find_all("iframe"))
+    embeds = len(soup.find_all("embed"))
+    text_length = len(text)
+    lcp = "good"
+    if text_length > 50000 or dom_size > 1000000 or image_count > 20:
+        lcp = "needs improvement"
+    if text_length > 200000 or dom_size > 5000000 or image_count > 100:
+        lcp = "poor"
+    fcp = "good"
+    if dom_size > 500000 or scripts > 10 or stylesheets > 5:
+        fcp = "needs improvement"
+    if dom_size > 2000000 or scripts > 30:
+        fcp = "poor"
+    cls = "good"
+    if images_no_dims > 0 or iframes > 0 or embeds > 0:
+        cls = "needs improvement"
+    if images_no_dims > 5 or iframes > 3:
+        cls = "poor"
+    return {
+        "lcp": lcp,
+        "fcp": fcp,
+        "cls": cls,
+        "dom_size_bytes": dom_size,
+        "image_count": image_count,
+        "images_without_dimensions": images_no_dims,
+        "scripts_count": scripts,
+        "stylesheets_count": stylesheets,
+        "text_length_chars": text_length,
+    }
+
+
+def format_csv_report(results):
+    import io
+    import csv
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow(["url", "status", "score", "title", "title_length", "description_length",
+                     "h1_count", "images_total", "images_without_alt", "has_viewport",
+                     "has_schema", "flesch_kincaid", "internal_links", "external_links",
+                     "lcp", "fcp", "cls"])
+    for r in results:
+        if r.get("status") != "ok":
+            writer.writerow([r.get("url", ""), "error", "", "", "", "", "", "", "", "", "", "", "", "", "", "", ""])
+            continue
+        meta = r.get("meta_tags", {})
+        headings = r.get("headings", {})
+        images = r.get("images", {})
+        mobile = r.get("mobile_viewport", {})
+        schema = r.get("structured_data", {})
+        readability = r.get("readability", {})
+        links = r.get("links", {})
+        cwv = r.get("core_web_vitals", {})
+        writer.writerow([
+            r.get("url", ""), "ok", r.get("score", ""),
+            meta.get("title", ""), meta.get("title_length", 0), meta.get("description_length", 0),
+            headings.get("h1", {}).get("count", 0),
+            images.get("total", 0), images.get("without_alt", 0),
+            mobile.get("has_viewport", False),
+            schema.get("has_structured_data", False),
+            readability.get("flesch_kincaid", 0),
+            links.get("internal", 0), links.get("external", 0),
+            cwv.get("lcp", ""), cwv.get("fcp", ""), cwv.get("cls", ""),
+        ])
+    return output.getvalue()
+
+
 def compute_seo_score(analysis):
     score = 0
     meta = analysis.get("meta_tags", {})
@@ -227,6 +334,11 @@ def compute_seo_score(analysis):
     links = analysis.get("links", {})
     if links.get("internal", 0) > 0:
         score += min(5, links["internal"])
+    cwv = analysis.get("core_web_vitals", {})
+    if cwv.get("lcp") == "good":
+        score += 3
+    if cwv.get("cls") == "good":
+        score += 2
     keywords = analysis.get("keywords", {})
     if keywords.get("top_words"):
         score += 3
@@ -250,4 +362,5 @@ def analyze_html(html, url=None):
         "links": extract_links(soup, url),
         "structured_data": schema,
         "mobile_viewport": check_mobile_viewport(soup),
+        "core_web_vitals": estimate_core_web_vitals(soup, text),
     }
