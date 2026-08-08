@@ -4,7 +4,7 @@ from pydantic import BaseModel
 import stripe
 
 from config import settings
-from api.auth import get_current_user
+from api.auth import get_current_user, USERS_DB
 
 logger = logging.getLogger(__name__)
 
@@ -47,11 +47,45 @@ async def webhook(request: Request):
         event = stripe.Webhook.construct_event(payload, sig, settings.stripe_webhook_secret)
     except (ValueError, stripe.error.SignatureVerificationError):
         raise HTTPException(status_code=400, detail="Invalid signature")
+
     if event["type"] == "checkout.session.completed":
         session = event["data"]["object"]
-        email = session.get("customer_email", session.get("customer_details", {}).get("email"))
-    elif event["type"] == "customer.subscription.updated":
-        subscription = event["data"]["object"]
+        email = session.get("customer_email") or session.get("customer_details", {}).get("email")
+        if email and email in USERS_DB:
+            USERS_DB[email]["premium"] = True
+            USERS_DB[email]["stripe_customer_id"] = session.get("customer")
+            logger.info("Premium activated for %s", email)
+
     elif event["type"] == "customer.subscription.deleted":
         subscription = event["data"]["object"]
+        customer_id = subscription.get("customer")
+        for email, user in USERS_DB.items():
+            if user.get("stripe_customer_id") == customer_id:
+                user["premium"] = False
+                logger.info("Premium deactivated for %s", email)
+                break
+
+    elif event["type"] == "customer.subscription.updated":
+        subscription = event["data"]["object"]
+        customer_id = subscription.get("customer")
+        is_active = subscription.get("status") == "active"
+        for email, user in USERS_DB.items():
+            if user.get("stripe_customer_id") == customer_id:
+                user["premium"] = is_active
+                logger.info("Premium %s for %s", "activated" if is_active else "deactivated", email)
+                break
+
     return {"status": "ok"}
+
+
+@router.get("/status")
+async def payment_status(user: dict = Depends(get_current_user)):
+    return {"premium": user.get("premium", False)}
+
+
+@router.get("/config")
+async def payment_config(user: dict = Depends(get_current_user)):
+    return {
+        "publishable_key": settings.stripe_publishable_key,
+        "price_id": settings.stripe_price_id,
+    }

@@ -8,9 +8,9 @@
 // Constants
 // ==========================================================================
 
-const API_BASE = 'http://hernestagent.duckdns.org';
-const STRIPE_UPGRADE_URL = 'http://hernestagent.duckdns.org/upgrade';
-const PREMIUM_CHECK_URL = 'http://hernestagent.duckdns.org/api/user/premium-status';
+const API_BASE = 'https://hernestagent.duckdns.org';
+const STRIPE_UPGRADE_URL = 'https://hernestagent.duckdns.org/upgrade';
+const PREMIUM_CHECK_URL = 'https://hernestagent.duckdns.org/api/user/premium-status';
 const CACHE_TTL_MS = 60 * 60 * 1000; // 1 hour
 
 // ==========================================================================

@@ -9,7 +9,7 @@
 // Constants
 // ==========================================================================
 
-const API_BASE = 'http://hernestagent.duckdns.org';
+const API_BASE = 'https://hernestagent.duckdns.org';
 const CACHE_KEY_PREFIX = 'seo_cache_';
 const CACHE_TTL_MS = 60 * 60 * 1000;
 const PREMIUM_KEY = 'seo_premium_status';

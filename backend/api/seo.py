@@ -1,14 +1,17 @@
 import logging
-from fastapi import APIRouter, HTTPException
-from pydantic import BaseModel, HttpUrl, field_validator
+from datetime import datetime
+from fastapi import APIRouter, HTTPException, Depends
+from pydantic import BaseModel, field_validator
 
 from services.seo_analyzer import analyze_html, compute_seo_score
+from database import save_audit, get_history
+from api.auth import get_current_user
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/seo", tags=["seo"])
 
-MAX_HTML_SIZE = 5 * 1024 * 1024  # 5 MB
+MAX_HTML_SIZE = 5 * 1024 * 1024
 
 
 class AnalyzeRequest(BaseModel):
@@ -30,17 +33,18 @@ class AnalyzeRequest(BaseModel):
         return v
 
 
-class ScoreRequest(BaseModel):
-    url: str
-
-
 @router.post("/analyze")
 async def analyze(req: AnalyzeRequest):
     if not req.html or len(req.html.strip()) < 50:
         raise HTTPException(status_code=400, detail="HTML content too short or empty")
     try:
         analysis = analyze_html(req.html, req.url)
-        analysis["score"] = compute_seo_score(analysis)
+        score = compute_seo_score(analysis)
+        analysis["score"] = score
+        try:
+            save_audit("anonymous", req.url or "unknown", score, str(analysis), datetime.utcnow().isoformat())
+        except Exception:
+            pass
         return analysis
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
@@ -55,3 +59,8 @@ async def score(url: str):
         status_code=400,
         detail="Use POST /api/seo/analyze with HTML content to get a full analysis and score.",
     )
+
+
+@router.get("/history")
+async def history(user: dict = Depends(get_current_user)):
+    return get_history(user["email"])

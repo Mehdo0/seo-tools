@@ -2,9 +2,14 @@
   "manifest_version": 3,
   "name": "SEO Inspector",
   "version": "1.0.0",
-  "description": "Professional on-page SEO analysis tool. Audit meta tags, headings, keywords, links, images, and more — right from your browser.",
-  "permissions": ["activeTab", "storage"],
-  "host_permissions": ["https://*/*", "http://*/*"],
+  "description": "Professional on-page SEO analysis tool. Audit meta tags, headings, keywords, links, images, and more \u2014 right from your browser.",
+  "permissions": [
+    "activeTab",
+    "storage"
+  ],
+  "host_permissions": [
+    "https://*/*"
+  ],
   "action": {
     "default_popup": "popup/popup.html",
     "default_title": "SEO Inspector",
@@ -24,15 +29,23 @@
   },
   "content_scripts": [
     {
-      "matches": ["<all_urls>"],
-      "js": ["content/content-script.js"],
+      "matches": [
+        "<all_urls>"
+      ],
+      "js": [
+        "content/content-script.js"
+      ],
       "run_at": "document_idle"
     }
   ],
   "web_accessible_resources": [
     {
-      "resources": ["popup/*"],
-      "matches": ["<all_urls>"]
+      "resources": [
+        "popup/*"
+      ],
+      "matches": [
+        "<all_urls>"
+      ]
     }
   ]
 }

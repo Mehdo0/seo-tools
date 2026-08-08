@@ -3,11 +3,11 @@ from pathlib import Path
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, HTMLResponse
-from slowapi import Limiter, _rate_limit_exceeded_handler
-from slowapi.util import get_remote_address
+from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 
 from config import settings
+from rate_limit import limiter
 from api import auth, seo, payments, scraping
 
 STATIC_DIR = Path(__file__).parent / "static"
@@ -19,9 +19,8 @@ async def lifespan(app: FastAPI):
     from services.scraper_engine import scraper
     await scraper.stop()
 
-app = FastAPI(title=settings.app_name, lifespan=lifespan)
 
-limiter = Limiter(key_func=get_remote_address, default_limits=[f"{settings.rate_limit_requests}/minute"])
+app = FastAPI(title=settings.app_name, lifespan=lifespan)
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
