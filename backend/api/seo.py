@@ -6,6 +6,7 @@ from pydantic import BaseModel, field_validator
 
 import httpx
 from services.seo_analyzer import analyze_html, compute_seo_score, estimate_keyword_difficulty, format_csv_report
+from services.audit import audit, rules_catalog, CATEGORY_WEIGHTS, RULESET_VERSION
 from database import save_audit, get_history
 from api.auth import get_current_user
 
@@ -67,10 +68,12 @@ async def analyze(req: AnalyzeRequest):
         raise HTTPException(status_code=400, detail="HTML content too short or empty")
     try:
         analysis = analyze_html(req.html, req.url)
-        score = compute_seo_score(analysis)
-        analysis["score"] = score
+        # `audit` is the report clients should show: issues with severity, fix and cost.
+        # `score` stays as the legacy flat score for clients that already read it.
+        analysis["audit"] = audit(analysis)
+        analysis["score"] = compute_seo_score(analysis)
         try:
-            save_audit("anonymous", req.url or "unknown", score, str(analysis), datetime.utcnow().isoformat())
+            save_audit("anonymous", req.url or "unknown", analysis["score"], str(analysis), datetime.utcnow().isoformat())
         except Exception:
             pass
         return analysis
@@ -79,6 +82,17 @@ async def analyze(req: AnalyzeRequest):
     except Exception as e:
         logger.error("SEO analysis failed: %s", e, exc_info=True)
         raise HTTPException(status_code=500, detail="Internal server error during analysis")
+
+
+@router.get("/rules")
+async def rules():
+    """The documented rule set: which categories are scored, how they are weighted, and what
+    each rule checks. A report that deducts points must be able to explain them."""
+    return {
+        "ruleset": RULESET_VERSION,
+        "categories": CATEGORY_WEIGHTS,
+        "rules": rules_catalog(),
+    }
 
 
 @router.post("/batch-analyze")
@@ -93,6 +107,7 @@ async def batch_analyze(req: BatchRequest):
                     resp = await client.get(url)
                     html = resp.text
                 analysis = analyze_html(html, url)
+                analysis["audit"] = audit(analysis)
                 analysis["score"] = compute_seo_score(analysis)
                 analysis["status"] = "ok"
                 return analysis
