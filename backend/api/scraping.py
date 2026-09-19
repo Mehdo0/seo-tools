@@ -1,53 +1,28 @@
 import logging
-from urllib.parse import urlparse
 from fastapi import APIRouter, HTTPException, Depends
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel
 from typing import Optional
 
 from api.auth import get_current_user
 from services.scraper_engine import scraper
+from services.url_guard import check_url
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/scraping", tags=["scraping"])
 
-BLOCKED_HOSTS = {
-    "localhost", "127.0.0.1", "0.0.0.0", "::1",
-    "169.254.169.254",  # AWS metadata
-    "metadata.google.internal",  # GCP metadata
-    "10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16",  # private ranges (CIDR prefixes)
-}
-BLOCKED_SCHEMES = {"file", "ftp", "gopher", "javascript", "data"}
-
 
 def validate_url(url: str) -> str:
-    """Validate URL is safe — block SSRF to internal networks."""
-    if not url or not isinstance(url, str):
-        raise ValueError("URL is required")
-    if len(url) > 2048:
-        raise ValueError("URL exceeds maximum length")
-    parsed = urlparse(url)
-    if parsed.scheme.lower() not in ("http", "https"):
-        raise ValueError(f"Only http/https URLs are allowed, got: {parsed.scheme}")
-    hostname = (parsed.hostname or "").lower()
-    if not hostname:
-        raise ValueError("URL must include a valid hostname")
-    # Block localhost and internal IPs
-    if hostname in BLOCKED_HOSTS:
-        raise ValueError("URL hostname is blocked for security reasons")
-    # Check if hostname resolves to a private/internal IP
-    try:
-        import ipaddress
-        import socket
-        addr = socket.gethostbyname(hostname)
-        ip = ipaddress.ip_address(addr)
-        if ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_unspecified:
-            raise ValueError("URL resolves to a private/internal IP address")
-        if hostname.endswith(".local") or hostname.endswith(".internal"):
-            raise ValueError("URL hostname appears to be internal")
-    except (socket.gaierror, ValueError):
-        raise ValueError("Could not resolve URL hostname")
-    return url
+    """Same guard as every other outbound call.
+
+    The rules used to live here and were weaker than they looked: `gethostbyname` returned a
+    single IPv4 answer, the private-range entries were CIDR *strings* ("10.0.0.0/8") that a
+    set lookup can never match, any port was accepted, and the resolution happened once —
+    the browser resolved the name again when fetching, which is the TOCTOU hole. The shared
+    guard checks every resolved address, an explicit port allowlist, credentials and
+    internal suffixes, and the scraper re-checks each request inside the browser.
+    """
+    return check_url(url).url
 
 
 class ScrapeRequest(BaseModel):

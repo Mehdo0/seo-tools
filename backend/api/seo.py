@@ -1,12 +1,12 @@
 import asyncio
 import logging
 from datetime import datetime
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, HTTPException, Depends, Request
 from pydantic import BaseModel, field_validator
 
-import httpx
 from services.seo_analyzer import analyze_html, compute_seo_score, estimate_keyword_difficulty, format_csv_report
 from services.audit import audit, rules_catalog, CATEGORY_WEIGHTS, RULESET_VERSION
+from services.url_guard import UnsafeUrlError, fetch_checked
 from database import save_audit, get_history
 from api.auth import get_current_user
 
@@ -97,25 +97,34 @@ async def rules():
 
 @router.post("/batch-analyze")
 async def batch_analyze(req: BatchRequest):
-    results = []
-    sem = asyncio.Semaphore(3)
+    """Analyse several URLs.
+
+    Every hop is validated by `url_guard.fetch_checked`: this endpoint used to fetch any URL
+    with httpx and no check whatsoever, which made it a direct SSRF path into the internal
+    network (cloud metadata, localhost, RFC1918). The analysis itself runs in a worker
+    thread so the event loop keeps serving other requests while a page is parsed.
+    """
+    sem = asyncio.Semaphore(4)
 
     async def analyze_one(url):
         async with sem:
             try:
-                async with httpx.AsyncClient(timeout=30, follow_redirects=True) as client:
-                    resp = await client.get(url)
-                    html = resp.text
-                analysis = analyze_html(html, url)
+                final_url, html, content_type, status = await fetch_checked(url, timeout=20.0)
+                if status >= 400:
+                    return {"url": url, "status": "error", "error": f"HTTP {status}"}
+                if "html" not in content_type and "xml" not in content_type:
+                    return {"url": url, "status": "error", "error": f"Not an HTML document ({content_type})"}
+                analysis = await asyncio.to_thread(analyze_html, html, final_url)
                 analysis["audit"] = audit(analysis)
                 analysis["score"] = compute_seo_score(analysis)
                 analysis["status"] = "ok"
                 return analysis
-            except Exception as e:
-                return {"url": url, "status": "error", "error": str(e)}
+            except UnsafeUrlError as exc:
+                return {"url": url, "status": "error", "error": f"Refused: {exc}"}
+            except Exception as exc:  # réseau, DNS, timeouts
+                return {"url": url, "status": "error", "error": str(exc)}
 
-    tasks = [analyze_one(url) for url in req.urls]
-    results = await asyncio.gather(*tasks)
+    results = await asyncio.gather(*[analyze_one(url) for url in req.urls])
     if req.format == "csv":
         return {"csv": format_csv_report(results)}
     return {"total": len(req.urls), "results": results}
