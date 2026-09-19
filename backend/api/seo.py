@@ -1,14 +1,17 @@
 import asyncio
+import json
 import logging
 from datetime import datetime
 from fastapi import APIRouter, HTTPException, Depends, Request
 from pydantic import BaseModel, field_validator
 
+from config import settings
+from rate_limit import limiter
 from services.seo_analyzer import analyze_html, compute_seo_score, estimate_keyword_difficulty, format_csv_report
 from services.audit import audit, rules_catalog, CATEGORY_WEIGHTS, RULESET_VERSION
 from services.url_guard import UnsafeUrlError, fetch_checked
 from database import save_audit, get_history
-from api.auth import get_current_user
+from api.auth import get_current_user, optional_user
 
 logger = logging.getLogger(__name__)
 
@@ -62,20 +65,41 @@ class KeywordDifficultyRequest(BaseModel):
     url: str = None
 
 
+def history_payload(analysis: dict) -> str:
+    """Version courte stockée dans l'historique : le rapport complet pèse des centaines de
+    kilo-octets et n'est jamais relu."""
+    compact = {
+        "url": analysis.get("url"),
+        "score": analysis.get("score"),
+        "audit": {
+            "score": analysis.get("audit", {}).get("score"),
+            "grade": analysis.get("audit", {}).get("grade"),
+            "counts": analysis.get("audit", {}).get("counts"),
+            "summary": analysis.get("audit", {}).get("summary"),
+        },
+    }
+    text = json.dumps(compact)
+    return text[: settings.max_history_analysis_chars]
+
+
 @router.post("/analyze")
-async def analyze(req: AnalyzeRequest):
+@limiter.limit(settings.analyze_rate_limit)
+async def analyze(req: AnalyzeRequest, request: Request, user: dict | None = Depends(optional_user)):
     if not req.html or len(req.html.strip()) < 50:
         raise HTTPException(status_code=400, detail="HTML content too short or empty")
     try:
-        analysis = analyze_html(req.html, req.url)
-        # `audit` is the report clients should show: issues with severity, fix and cost.
-        # `score` stays as the legacy flat score for clients that already read it.
+        # L'analyse est purement calculatoire (jusqu'à 5 Mo de HTML) : dans le thread de
+        # l'événement, elle bloquait toutes les autres requêtes pendant sa durée.
+        analysis = await asyncio.to_thread(analyze_html, req.html, req.url)
         analysis["audit"] = audit(analysis)
         analysis["score"] = compute_seo_score(analysis)
-        try:
-            save_audit("anonymous", req.url or "unknown", analysis["score"], str(analysis), datetime.utcnow().isoformat())
-        except Exception:
-            pass
+        if user:
+            # Historique écrit au nom du compte connecté, pas sous « anonymous ».
+            try:
+                save_audit(user["email"], req.url or "unknown", analysis["audit"]["score"],
+                           history_payload(analysis), datetime.utcnow().isoformat())
+            except Exception as exc:
+                logger.warning("History not stored for %s: %s", user.get("email"), exc)
         return analysis
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
@@ -96,7 +120,8 @@ async def rules():
 
 
 @router.post("/batch-analyze")
-async def batch_analyze(req: BatchRequest):
+@limiter.limit(settings.batch_rate_limit)
+async def batch_analyze(req: BatchRequest, request: Request):
     """Analyse several URLs.
 
     Every hop is validated by `url_guard.fetch_checked`: this endpoint used to fetch any URL
@@ -131,7 +156,8 @@ async def batch_analyze(req: BatchRequest):
 
 
 @router.post("/keyword-difficulty")
-async def keyword_difficulty(req: KeywordDifficultyRequest):
+@limiter.limit(settings.analyze_rate_limit)
+async def keyword_difficulty(req: KeywordDifficultyRequest, request: Request):
     score = estimate_keyword_difficulty(req.keyword, req.url)
     return {"keyword": req.keyword, "difficulty": score}
 
