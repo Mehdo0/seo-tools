@@ -192,18 +192,23 @@ async function initAnalysis() {
       html = response.html;
     }
 
-    // Analyze locally (fast, no API dependency for core features)
+    // Analyse locale (rapide, aucune dépendance réseau pour l'essentiel)
     analysisData = analyzeLocally(html, tab.url);
     analysisData.pageSizeKB = Math.round(html.length / 1024);
 
-    // Try backend API for richer analysis
+    // Puis l'audit serveur, plus complet : il apporte le rapport détaillé (issues,
+    // catégories). Ses valeurs sont conservées à part — les mélanger à chaud écrasait les
+    // structures locales (headings, links) et cassait plusieurs sections.
     try {
       const apiResult = await callBackendAPI(html, tab.url);
-      if (apiResult) {
-        analysisData = { ...analysisData, ...apiResult };
+      const remote = normalizeApiResult(apiResult);
+      if (remote) {
+        analysisData.remote = remote;
+        if (remote.words) analysisData.content.wordCount = remote.words;
+        if (remote.pageSizeKB) analysisData.pageSizeKB = remote.pageSizeKB;
       }
     } catch {
-      // Backend unavailable, use local analysis
+      // Backend injoignable : l'analyse locale suffit
     }
 
     // Cache results
@@ -448,11 +453,17 @@ function getGrade(score) {
 async function callBackendAPI(html, url) {
   try {
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 5000);
+    const timeout = setTimeout(() => controller.abort(), 8000);
+
+    const headers = { 'Content-Type': 'application/json' };
+    // Le jeton est facultatif côté serveur : avec lui, l'audit est archivé dans
+    // l'historique du compte ; sans lui, l'analyse reste disponible pour tout le monde.
+    const token = await getToken().catch(() => null);
+    if (token) headers['Authorization'] = `Bearer ${token}`;
 
     const response = await fetch(`${API_BASE}/api/seo/analyze`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers,
       body: JSON.stringify({ html, url }),
       signal: controller.signal
     });
@@ -464,6 +475,45 @@ async function callBackendAPI(html, url) {
   } catch {
     return null;
   }
+}
+
+/**
+ * Traduit la réponse de l'API vers la forme attendue par l'interface.
+ *
+ * Les deux moteurs ne produisent pas la même structure : l'analyse locale expose
+ * `headings.h1` (tableau), `links.internal`, `meta.title.length`…, l'API expose
+ * `headings.h1.count`, `links` identique mais sans `score`, `meta_tags`… Le code faisait
+ * `{...local, ...api}`, donc dès que le serveur répondait, `headings` devenait un objet de
+ * compteurs que `renderHeadings` lisait comme un tableau, et le nombre de liens internes
+ * disparaissait. On ne recopie donc QUE ce que l'API apporte réellement.
+ */
+function normalizeApiResult(api) {
+  if (!api || typeof api !== 'object' || !api.meta_tags) return null;
+  const meta = api.meta_tags;
+  const readability = api.readability || {};
+  const stats = api.content_stats || {};
+  return {
+    score: api.score,
+    audit: api.audit || null,
+    readability: {
+      grade: readability.flesch_kincaid_grade ?? null,
+      ease: readability.reading_ease ?? null,
+      level: readability.level || null,
+      avgSentenceLength: readability.avg_sentence_length ?? null
+    },
+    words: stats.word_count ?? null,
+    pageSizeKB: api.html_bytes ? Math.round(api.html_bytes / 1024) : null,
+    remote: {
+      titleLength: meta.title_length ?? null,
+      descriptionLength: meta.description_length ?? null,
+      hasCanonical: Boolean(meta.canonical),
+      hasSchema: Boolean(api.structured_data && api.structured_data.has_structured_data),
+      schemaTypes: (api.structured_data && api.structured_data.types) || [],
+      imagesWithoutAlt: api.images ? api.images.without_alt : null,
+      internalLinks: api.links ? api.links.internal : null,
+      externalLinks: api.links ? api.links.external : null
+    }
+  };
 }
 
 // ==========================================================================
@@ -509,9 +559,11 @@ function renderResults() {
   if (!analysisData) return;
 
   const d = analysisData;
+  const audit = d.remote?.audit || null;
 
-  // Score
-  renderScore(d.overall.score);
+  // Score : celui du moteur serveur quand il a répondu (il note sept catégories), sinon
+  // celui de l'analyse locale, disponible immédiatement.
+  renderScore(audit ? audit.score : d.overall.score, audit ? audit.grade : null);
 
   // Overview
   document.getElementById('metaScore').textContent = d.meta?.title?.score ?? '--';
@@ -551,11 +603,73 @@ function renderResults() {
   // Images
   renderImages(d);
 
+  // Rapport détaillé du serveur (severités, correctifs, catégories)
+  renderAudit(d);
+
   // Show results
   document.getElementById('resultsContainer').classList.remove('hidden');
 }
 
-function renderScore(score) {
+const SEVERITY_ICON = { critical: 'fail', warning: 'warn', notice: 'info' };
+
+/** Affiche le rapport d'audit renvoyé par l'API : catégories, constats et correctifs. */
+function renderAudit(d) {
+  const panel = document.getElementById('panel-audit');
+  if (!panel) return;
+  const audit = d.remote?.audit;
+
+  if (!audit) {
+    panel.innerHTML = `
+      <p class="audit-empty">
+        Server audit unavailable — the figures above come from the on-page analysis.
+        Start the API and reload to get the full report (see ARCHITECTURE.md).
+      </p>`;
+    return;
+  }
+
+  const categories = Object.entries(audit.categories || {}).map(([name, entry]) => {
+    const ratio = entry.max ? entry.score / entry.max : 0;
+    const state = ratio >= 0.85 ? 'pass' : ratio >= 0.6 ? 'warn' : 'fail';
+    return `
+      <div class="audit-cat">
+        <div class="audit-cat-head">
+          <span>${escapeHtml(name)}</span>
+          <span class="check-value">${entry.score}/${entry.max}</span>
+        </div>
+        <div class="audit-bar"><i class="${state}" style="width:${Math.round(ratio * 100)}%"></i></div>
+      </div>`;
+  }).join('');
+
+  const issues = (audit.issues || []).map((issue) => `
+    <li class="checklist-item">
+      <span class="check-icon ${SEVERITY_ICON[issue.severity] || 'info'}">●</span>
+      <div class="check-body">
+        <div class="check-label">${escapeHtml(issue.message)}</div>
+        <div class="check-advice">${escapeHtml(issue.fix)}</div>
+        <div class="audit-rule">${escapeHtml(issue.rule)} · −${issue.impact} pts</div>
+      </div>
+    </li>`).join('');
+
+  panel.innerHTML = `
+    <div class="audit-head">
+      <div class="audit-score">
+        <span class="audit-score-value">${audit.score}</span>
+        <span class="audit-grade">${escapeHtml(audit.grade || '')}</span>
+      </div>
+      <div class="audit-summary">
+        <p>${escapeHtml(audit.summary || '')}</p>
+        <p class="audit-meta">
+          critical ${audit.counts?.critical || 0} · warning ${audit.counts?.warning || 0} ·
+          notice ${audit.counts?.notice || 0} · ruleset ${escapeHtml(audit.ruleset || '')}
+        </p>
+      </div>
+    </div>
+    <div class="audit-categories">${categories}</div>
+    ${issues ? `<ul class="checklist audit-issues">${issues}</ul>`
+             : '<p class="audit-empty">No issue found by the rule set. Clean page.</p>'}`;
+}
+
+function renderScore(score, grade = null) {
   const circumference = 2 * Math.PI * 52; // r=52
   const offset = circumference - (score / 100) * circumference;
   const arc = document.getElementById('scoreArc');
@@ -570,7 +684,8 @@ function renderScore(score) {
   else arc.classList.add('score-poor');
 
   document.getElementById('scoreNumber').textContent = score;
-  document.getElementById('scoreLabel').textContent = getGrade(score) + ' Grade';
+  document.getElementById('scoreLabel').textContent =
+    grade ? `${grade} · server audit` : `${getGrade(score)} Grade · on-page`;
 }
 
 function updateSummaryClass(elId, score, threshold) {

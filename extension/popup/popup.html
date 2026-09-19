@@ -69,6 +69,7 @@
       <!-- Tab navigation -->
       <nav class="tabs">
         <button class="tab active" data-tab="overview">Overview</button>
+        <button class="tab" data-tab="audit">Audit</button>
         <button class="tab" data-tab="meta">Meta</button>
         <button class="tab" data-tab="headings">Headings</button>
         <button class="tab" data-tab="keywords">Keywords</button>
@@ -108,6 +109,11 @@
               <li class="summary-item good">Load time: <span id="sumLoad">--</span></li>
             </ul>
           </div>
+        </div>
+
+        <!-- Audit Panel : rapport du moteur serveur (catégories + constats) -->
+        <div class="tab-panel" id="panel-audit">
+          <p class="audit-empty">Fetching the server audit…</p>
         </div>
 
         <!-- Meta Panel -->

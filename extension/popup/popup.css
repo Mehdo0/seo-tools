@@ -740,3 +740,108 @@ body::-webkit-scrollbar-thumb {
 body::-webkit-scrollbar-thumb:hover {
   background: var(--text-muted);
 }
+
+/* ==========================================================================
+   Audit panel — server report: category scores and findings
+   ========================================================================== */
+
+.check-icon.info { color: var(--text-muted); }
+
+.audit-empty {
+  margin: 0;
+  padding: 12px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--text-secondary);
+  background: var(--cream-dark);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+}
+
+.audit-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  background: var(--cream);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-sm);
+}
+
+.audit-score {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-width: 56px;
+}
+
+.audit-score-value {
+  font-size: 26px;
+  font-weight: 700;
+  line-height: 1;
+  color: var(--navy);
+}
+
+.audit-grade {
+  margin-top: 2px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  color: var(--gold-dark);
+}
+
+.audit-summary p {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--text);
+}
+
+.audit-meta {
+  margin-top: 4px !important;
+  font-size: 10.5px !important;
+  color: var(--text-muted) !important;
+}
+
+.audit-categories {
+  display: grid;
+  gap: 8px;
+  margin: 12px 0;
+}
+
+.audit-cat-head {
+  display: flex;
+  justify-content: space-between;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text);
+  text-transform: capitalize;
+}
+
+.audit-bar {
+  height: 5px;
+  margin-top: 4px;
+  overflow: hidden;
+  background: var(--border-light);
+  border-radius: 3px;
+}
+
+.audit-bar i {
+  display: block;
+  height: 100%;
+  border-radius: 3px;
+}
+
+.audit-bar i.pass { background: var(--success); }
+.audit-bar i.warn { background: var(--warning); }
+.audit-bar i.fail { background: var(--danger); }
+
+.audit-issues { margin-top: 4px; }
+
+.audit-rule {
+  margin-top: 3px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 10px;
+  color: var(--text-muted);
+}
