@@ -1,9 +1,7 @@
 """API behaviour that the previous test suite could not see: history, rules, body cap, SSRF."""
 
-import asyncio
 import json
 
-import pytest
 
 from config import settings
 from rate_limit import DEFAULT_LIMIT

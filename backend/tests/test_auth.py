@@ -1,4 +1,3 @@
-import pytest
 import time
 import jwt
 from datetime import datetime, timedelta
@@ -142,7 +141,7 @@ class TestMeEndpoint:
 
     def test_me_with_expired_token(self, client):
         email = f"expired_{time.time()}@test.com"
-        reg = client.post("/api/auth/register", json={
+        client.post("/api/auth/register", json={
             "email": email,
             "password": "password123",
         })
