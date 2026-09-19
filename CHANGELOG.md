@@ -4,6 +4,19 @@
 
 ### Fixed
 
+- **The extension was dead on open.** `popup.js` bound handlers to seven sign-in elements
+  (`authOverlay`, `authEmail`, `authPassword`, `authLoginBtn`, `authCancelBtn`, `authError`,
+  `authRegisterLink`) that were never added to `popup.html`, and the stylesheet had no rule for
+  them either. `bindEvents()` threw on the first `addEventListener`, so no handler and no
+  analysis ever ran. The overlay is restored (the premium flow is what opens it through
+  `openUpgrade()`), and a static contract test now fails if any referenced element is missing.
+- **`chrome.scripting` was used without the `scripting` permission** (and `chrome.alarms`
+  without `alarms`), so page extraction failed and was swallowed by a `catch {}`. Both are
+  declared. Verified in a real Chrome: `executeScript` injects into an https page and the popup
+  renders a score.
+- **The global rate limit was never applied.** SlowAPI only enforces `default_limits` through
+  `SlowAPIMiddleware`, which was absent: only the per-route decorators counted, and
+  `RATE_LIMIT_REQUESTS` existed on paper only.
 - **The application could not start.** `api/payments.py` imported `USERS_DB` from
   `api.auth`, a symbol the SQLite migration had already removed: importing `main` raised
   `ImportError`, the deployed API could not boot, and 50 of the 81 tests errored out before
@@ -66,7 +79,20 @@
 - Persisted price history (`price_history` table, numeric value parsed from the display
   string) with lowest/highest/current.
 - Audit tab in the extension rendering categories, findings, fixes and rule ids.
-- Indexes on `audit_history` and `price_history`.
+- Extension contract test (`backend/tests/test_extension_contract.py`): every element the popup
+  references must exist in its markup, every tab must have a panel, and every Chrome API used
+  must have its permission declared. It would have caught the dead popup.
+- `docs/ROADMAP.md`: the remaining work, ordered, with the sources that justify each item.
+
+### Changed
+
+- Title and meta-description lengths are **guidance, not rules**: Google documents no length
+  limit, truncates by pixel width and may rewrite the title link. The findings say so, and a new
+  rule flags a title identical to the H1 (a real duplication signal).
+- Core Web Vitals estimates are labelled `source: "markup-estimate"` — they are read from the
+  markup, not measured; field data needs the Chrome UX Report.
+- `web_accessible_resources` removed: nothing used it, and exposing `popup/*` to `<all_urls>`
+  only widened fingerprinting.
 
 ### Performance
 
