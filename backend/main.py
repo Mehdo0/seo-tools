@@ -6,6 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, HTMLResponse
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
+from slowapi.middleware import SlowAPIMiddleware
 
 from config import settings
 from rate_limit import limiter
@@ -26,6 +27,10 @@ async def lifespan(app: FastAPI):
 app = FastAPI(title=settings.app_name, lifespan=lifespan)
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+# Sans ce middleware, `default_limits` n'est appliqué à aucune route : seul le décorateur
+# `@limiter.limit(...)` posé route par route comptait, et la limite globale de la
+# configuration (RATE_LIMIT_REQUESTS) n'existait que sur le papier.
+app.add_middleware(SlowAPIMiddleware)
 
 app.add_middleware(
     CORSMiddleware,

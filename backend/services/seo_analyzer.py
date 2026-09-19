@@ -560,6 +560,10 @@ def estimate_core_web_vitals(soup, text, html="", base_url=None):
         "third_party_hosts": [{"host": h, "count": c} for h, c in third_party.most_common(10)],
         "text_length_chars": text_length,
         "estimate": True,
+        # Ces valeurs sont déduites du balisage, pas mesurées sur le terrain : les vraies
+        # Core Web Vitals viennent du Chrome UX Report (75e percentile, mobile et poste
+        # séparés). Les présenter comme des mesures serait un mensonge.
+        "source": "markup-estimate",
     }
 
 

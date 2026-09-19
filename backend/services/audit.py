@@ -63,15 +63,18 @@ def _audit_content(findings: list, analysis: dict) -> None:
     if not title:
         _finding(findings, "content", "critical", "title.missing", 8,
                  "The page has no <title>.",
-                 "Add a unique title of 30-60 characters that states the topic and the brand.")
+                 "Add a unique title that states the topic and the brand: search engines show it as the title link.")
     elif title_length < 30:
-        _finding(findings, "content", "warning", "title.short", 3,
-                 f"Title is only {title_length} characters.", "Aim for 30-60 characters.",
-                 {"title": title})
+        _finding(findings, "content", "notice", "title.short", 2,
+                 f"Title is {title_length} characters.",
+                 "Short titles waste the click opportunity. There is no hard length limit — the "
+                 "title link is truncated by pixel width, and Google may rewrite it — but aim "
+                 "for a descriptive 30-60 characters.", {"title": title})
     elif title_length > 65:
-        _finding(findings, "content", "warning", "title.long", 3,
-                 f"Title is {title_length} characters and will be truncated in results.",
-                 "Keep the title under 60-65 characters.", {"title": title})
+        _finding(findings, "content", "notice", "title.long", 2,
+                 f"Title is {title_length} characters and may be rewritten or truncated.",
+                 "Keep the distinctive part first: Google truncates by pixel width and can "
+                 "replace the title link entirely.", {"title": title})
     if title:
         words = [w.lower() for w in title.split()]
         repeated = sorted({w for w in words if words.count(w) > 1 and len(w) > 2})
@@ -79,21 +82,30 @@ def _audit_content(findings: list, analysis: dict) -> None:
             _finding(findings, "content", "notice", "title.repetition", 2,
                      f"Title repeats the same word: {', '.join(repeated)}.",
                      "Use each significant word once; repetition reads as keyword stuffing.")
+        h1 = (headings.get("h1", {}).get("content") or [""])[0].strip().lower()
+        if h1 and h1 == title.strip().lower():
+            _finding(findings, "content", "warning", "title.duplicate_h1", 3,
+                     "The title tag and the H1 are identical.",
+                     "Give them different wording: the H1 addresses the reader, the title also "
+                     "has to work out of context in search results.", {"title": title})
 
     description = meta.get("description")
     description_length = meta.get("description_length", 0)
     if not description:
         _finding(findings, "content", "critical", "description.missing", 8,
                  "The page has no meta description.",
-                 "Write a 120-160 character description that summarises the page and invites the click.")
+                 "Write a description that summarises the page and invites the click. It is "
+                 "advisory text: Google ignores it when a better snippet can be built from the page.")
     elif description_length < 120:
-        _finding(findings, "content", "warning", "description.short", 3,
-                 f"Meta description is only {description_length} characters.",
-                 "Below ~120 characters the snippet text is wasted.", {"description": description})
+        _finding(findings, "content", "notice", "description.short", 2,
+                 f"Meta description is {description_length} characters.",
+                 "No hard limit exists, but a short description leaves the snippet to Google. "
+                 "Aim for 120-160 characters, value proposition first.", {"description": description})
     elif description_length > 160:
         _finding(findings, "content", "notice", "description.long", 2,
                  f"Meta description is {description_length} characters and will be cut off.",
-                 "Trim it to 120-160 characters, keeping the value proposition first.")
+                 "The snippet is truncated by pixel width: put the useful part in the first "
+                 "120 characters.", {"description": description})
 
     word_count = stats.get("word_count", 0)
     if word_count < 100:

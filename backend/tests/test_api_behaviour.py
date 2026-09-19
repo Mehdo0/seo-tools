@@ -92,6 +92,12 @@ class TestRateLimitWiring:
         assert DEFAULT_LIMIT == f"{settings.rate_limit_requests}/{unit}"
         assert settings.rate_limit_requests == 999999
 
+    def test_global_default_limit_is_actually_applied(self, app):
+        """SlowAPI n'applique `default_limits` que par son middleware : sans lui, seule la
+        limite posée route par route comptait et la limite globale restait décorative."""
+        from slowapi.middleware import SlowAPIMiddleware
+        assert any(middleware.cls is SlowAPIMiddleware for middleware in app.user_middleware)
+
 
 class TestBatchSsrf:
     def test_private_targets_are_refused(self, client):
