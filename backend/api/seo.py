@@ -112,6 +112,16 @@ async def keyword_difficulty(req: KeywordDifficultyRequest):
     return {"keyword": req.keyword, "difficulty": score}
 
 
+@router.get("/score")
+async def score_deprecated(url: str = ""):
+    """Ancien point d'entrée conservé pour ne pas casser les clients : l'analyse se fait
+    désormais en POST, avec le HTML de la page (le serveur n'a plus à refetcher l'URL)."""
+    raise HTTPException(
+        status_code=400,
+        detail="Deprecated: POST the page HTML to /api/seo/analyze instead",
+    )
+
+
 @router.get("/history")
 async def history(user: dict = Depends(get_current_user)):
     return get_history(user["email"])
